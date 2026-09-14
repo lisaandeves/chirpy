@@ -18,20 +18,27 @@ func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
 	})
 }
 
-func (cfg *apiConfig) hitsHandler(writer http.ResponseWriter, _ *http.Request) {
-	writer.Header().Set("Content-Type", "text/plain; charset=utf-8")
+func (cfg *apiConfig) handlerMetrics(writer http.ResponseWriter, _ *http.Request) {
+	httpString := `<html>
+  	<body>
+    <h1>Welcome, Chirpy Admin</h1>
+    <p>Chirpy has been visited %d times!</p>
+  	</body>
+	</html>`
+
+	writer.Header().Set("Content-Type", "text/html; charset=utf-8")
 	writer.WriteHeader(http.StatusOK)
-	writer.Write(fmt.Appendf(nil, "Hits: %d", cfg.fileserverHits.Load()))
+	writer.Write(fmt.Appendf(nil, httpString, cfg.fileserverHits.Load()))
 }
 
-func (cfg *apiConfig) resetHitsHandler(writer http.ResponseWriter, _ *http.Request) {
+func (cfg *apiConfig) handlerResetHits(writer http.ResponseWriter, _ *http.Request) {
 	cfg.fileserverHits.Store(0)
 	writer.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	writer.WriteHeader(http.StatusOK)
 	writer.Write([]byte(http.StatusText(http.StatusOK)))
 }
 
-func readinessHandler(writer http.ResponseWriter, _ *http.Request) {
+func handlerReadiness(writer http.ResponseWriter, _ *http.Request) {
 	writer.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	writer.WriteHeader(http.StatusOK)
 	writer.Write([]byte(http.StatusText(http.StatusOK)))
@@ -44,9 +51,9 @@ func main() {
 
 	fileHandler := http.StripPrefix("/app", cfg.middlewareMetricsInc(http.FileServer(http.Dir("."))))
 	mux.Handle("/app/", fileHandler)
-	mux.HandleFunc("GET /api/healthz", readinessHandler)
-	mux.HandleFunc("GET /api/metrics", cfg.hitsHandler)
-	mux.HandleFunc("POST /api/reset", cfg.resetHitsHandler)
+	mux.HandleFunc("GET /api/healthz", handlerReadiness)
+	mux.HandleFunc("GET /admin/metrics", cfg.handlerMetrics)
+	mux.HandleFunc("POST /admin/reset", cfg.handlerResetHits)
 
 	server := http.Server{Addr: addr, Handler: mux}
 	log.Fatal(server.ListenAndServe())
