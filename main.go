@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"net/http"
 	"sync/atomic"
@@ -18,32 +17,6 @@ func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
 	})
 }
 
-func (cfg *apiConfig) handlerMetrics(writer http.ResponseWriter, _ *http.Request) {
-	httpString := `<html>
-  	<body>
-    <h1>Welcome, Chirpy Admin</h1>
-    <p>Chirpy has been visited %d times!</p>
-  	</body>
-	</html>`
-
-	writer.Header().Set("Content-Type", "text/html; charset=utf-8")
-	writer.WriteHeader(http.StatusOK)
-	writer.Write(fmt.Appendf(nil, httpString, cfg.fileserverHits.Load()))
-}
-
-func (cfg *apiConfig) handlerResetHits(writer http.ResponseWriter, _ *http.Request) {
-	cfg.fileserverHits.Store(0)
-	writer.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	writer.WriteHeader(http.StatusOK)
-	writer.Write([]byte(http.StatusText(http.StatusOK)))
-}
-
-func handlerReadiness(writer http.ResponseWriter, _ *http.Request) {
-	writer.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	writer.WriteHeader(http.StatusOK)
-	writer.Write([]byte(http.StatusText(http.StatusOK)))
-}
-
 func main() {
 	addr := ":8080"
 	cfg := apiConfig{}
@@ -52,6 +25,7 @@ func main() {
 	fileHandler := http.StripPrefix("/app", cfg.middlewareMetricsInc(http.FileServer(http.Dir("."))))
 	mux.Handle("/app/", fileHandler)
 	mux.HandleFunc("GET /api/healthz", handlerReadiness)
+	mux.HandleFunc("POST /api/validate_chirp", handlerChirpValidate)
 	mux.HandleFunc("GET /admin/metrics", cfg.handlerMetrics)
 	mux.HandleFunc("POST /admin/reset", cfg.handlerResetHits)
 
