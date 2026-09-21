@@ -34,10 +34,11 @@ func main() {
 	dbQueries := database.New(db)
 
 	addr := ":8080"
+	root := "."
 	cfg := apiConfig{db: dbQueries}
 	mux := http.NewServeMux()
 
-	fileHandler := http.StripPrefix("/app", cfg.middlewareMetricsInc(http.FileServer(http.Dir("."))))
+	fileHandler := http.StripPrefix("/app", cfg.middlewareMetricsInc(http.FileServer(http.Dir(root))))
 	mux.Handle("/app/", fileHandler)
 	mux.HandleFunc("GET /api/healthz", handlerReadiness)
 	mux.HandleFunc("POST /api/validate_chirp", handlerChirpValidate)

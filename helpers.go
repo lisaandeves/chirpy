@@ -27,11 +27,23 @@ func chirpCensor(text string) string {
 	return textCensored
 }
 
-func respondWithErrorJson(writer http.ResponseWriter, err error, msg string, code int) {
+func writeErrorJson(writer http.ResponseWriter, err error, msg string, code int) {
+	writer.Header().Set("Content-Type", "application/json")
 	resp := responseError{Error: fmt.Sprintf("%s: %s", msg, err.Error())}
 	dat, err := json.Marshal(resp)
 	if err != nil {
 		//Unreachable
+	}
+	writer.WriteHeader(code)
+	writer.Write(dat)
+}
+
+func writeResponseJson(writer http.ResponseWriter, resp any, code int) {
+	writer.Header().Set("Content-Type", "application/json")
+	dat, err := json.Marshal(resp)
+	if err != nil {
+		writeErrorJson(writer, err, "Couldn't marshall JSON", http.StatusInternalServerError)
+		return
 	}
 	writer.WriteHeader(code)
 	writer.Write(dat)
