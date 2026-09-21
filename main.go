@@ -41,8 +41,9 @@ func main() {
 	mux.Handle("/app/", fileHandler)
 	mux.HandleFunc("GET /api/healthz", handlerReadiness)
 	mux.HandleFunc("POST /api/validate_chirp", handlerChirpValidate)
+	mux.HandleFunc("POST /api/users", cfg.handlerAddUser)
 	mux.HandleFunc("GET /admin/metrics", cfg.handlerMetrics)
-	mux.HandleFunc("POST /admin/reset", cfg.handlerResetHits)
+	mux.HandleFunc("POST /admin/reset", cfg.handlerReset)
 
 	server := http.Server{Addr: addr, Handler: mux}
 	log.Fatal(server.ListenAndServe())

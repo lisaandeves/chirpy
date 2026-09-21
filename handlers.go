@@ -4,8 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"slices"
-	"strings"
+	"os"
 )
 
 func (cfg *apiConfig) handlerMetrics(writer http.ResponseWriter, _ *http.Request) {
@@ -21,7 +20,18 @@ func (cfg *apiConfig) handlerMetrics(writer http.ResponseWriter, _ *http.Request
 	writer.Write(fmt.Appendf(nil, httpString, cfg.fileserverHits.Load()))
 }
 
-func (cfg *apiConfig) handlerResetHits(writer http.ResponseWriter, _ *http.Request) {
+func (cfg *apiConfig) handlerReset(writer http.ResponseWriter, req *http.Request) {
+	platform := os.Getenv("PLATFORM")
+	if platform != "dev" {
+		respondWithErrorJson(writer, nil, "Forbidden", http.StatusForbidden)
+		return
+	}
+
+	err := cfg.db.DeleteAllUsers(req.Context())
+	if err != nil {
+		respondWithErrorJson(writer, err, "Couldn't delete all users", http.StatusInternalServerError)
+		return
+	}
 	cfg.fileserverHits.Store(0)
 	writer.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	writer.WriteHeader(http.StatusOK)
@@ -41,32 +51,17 @@ func handlerChirpValidate(writer http.ResponseWriter, req *http.Request) {
 	type responseValid struct {
 		CleanedBody string `json:"cleaned_body"`
 	}
-	type responseError struct {
-		Error string `json:"error"`
-	}
 
 	writer.Header().Set("Content-Type", "application/json")
 	decoder := json.NewDecoder(req.Body)
 	params := chirpJson{}
 	err := decoder.Decode(&params)
 	if err != nil {
-		resp := responseError{Error: fmt.Sprintf("Error decoding parameters: %s", err)}
-		dat, err := json.Marshal(resp)
-		if err != nil {
-			//Unreachable
-		}
-		writer.WriteHeader(500)
-		writer.Write(dat)
+		respondWithErrorJson(writer, err, "Couldn't decode parameters", http.StatusInternalServerError)
 		return
 	}
 	if len(params.Body) > 140 {
-		resp := responseError{Error: "Chirp is too long"}
-		dat, err := json.Marshal(resp)
-		if err != nil {
-			//Unreachable
-		}
-		writer.WriteHeader(400)
-		writer.Write(dat)
+		respondWithErrorJson(writer, nil, "Chirp is too long", http.StatusBadRequest)
 		return
 	}
 	resp := responseValid{CleanedBody: chirpCensor(params.Body)}
@@ -78,17 +73,41 @@ func handlerChirpValidate(writer http.ResponseWriter, req *http.Request) {
 	writer.Write(dat)
 }
 
-func chirpCensor(text string) string {
-	badWords := []string{"kerfuffle", "sharbert", "fornax"}
-	censorText := "****"
-
-	words := strings.Split(text, " ")
-	for i, word := range words {
-		wordLower := strings.ToLower(word)
-		if slices.Contains(badWords, wordLower) {
-			words[i] = censorText
-		}
+func (cfg *apiConfig) handlerAddUser(writer http.ResponseWriter, req *http.Request) {
+	type emailJson struct {
+		Email string `json:"email"`
 	}
-	textCensored := strings.Join(words, " ")
-	return textCensored
+	type userJson struct {
+		Id        string `json:"id"`
+		CreatedAt string `json:"created_at"`
+		UpdatedAt string `json:"updated_at"`
+		Email     string `json:"email"`
+	}
+
+	writer.Header().Set("Content-Type", "application/json")
+	decoder := json.NewDecoder(req.Body)
+	params := emailJson{}
+	err := decoder.Decode(&params)
+	if err != nil {
+		respondWithErrorJson(writer, err, "Couldn't decode parameters", http.StatusInternalServerError)
+		return
+	}
+
+	user, err := cfg.db.CreateUser(req.Context(), params.Email)
+	if err != nil {
+		respondWithErrorJson(writer, err, "Couldn't create user", http.StatusInternalServerError)
+		return
+	}
+	resp := userJson{
+		Id:        user.ID.String(),
+		CreatedAt: user.CreatedAt.String(),
+		UpdatedAt: user.UpdatedAt.String(),
+		Email:     user.Email,
+	}
+	dat, err := json.Marshal(resp)
+	if err != nil {
+		//Unreachable
+	}
+	writer.WriteHeader(http.StatusCreated)
+	writer.Write(dat)
 }
