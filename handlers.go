@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"slices"
+	"strings"
 )
 
 func (cfg *apiConfig) handlerMetrics(writer http.ResponseWriter, _ *http.Request) {
@@ -36,11 +38,11 @@ func handlerChirpValidate(writer http.ResponseWriter, req *http.Request) {
 	type chirpJson struct {
 		Body string `json:"body"`
 	}
+	type responseValid struct {
+		CleanedBody string `json:"cleaned_body"`
+	}
 	type responseError struct {
 		Error string `json:"error"`
-	}
-	type responseValid struct {
-		Valid bool `json:"valid"`
 	}
 
 	writer.Header().Set("Content-Type", "application/json")
@@ -67,11 +69,26 @@ func handlerChirpValidate(writer http.ResponseWriter, req *http.Request) {
 		writer.Write(dat)
 		return
 	}
-	resp := responseValid{Valid: true}
+	resp := responseValid{CleanedBody: chirpCensor(params.Body)}
 	dat, err := json.Marshal(resp)
 	if err != nil {
 		//Unreachable
 	}
 	writer.WriteHeader(200)
 	writer.Write(dat)
+}
+
+func chirpCensor(text string) string {
+	badWords := []string{"kerfuffle", "sharbert", "fornax"}
+	censorText := "****"
+
+	words := strings.Split(text, " ")
+	for i, word := range words {
+		wordLower := strings.ToLower(word)
+		if slices.Contains(badWords, wordLower) {
+			words[i] = censorText
+		}
+	}
+	textCensored := strings.Join(words, " ")
+	return textCensored
 }
