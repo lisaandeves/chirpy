@@ -8,10 +8,6 @@ import (
 	"strings"
 )
 
-type responseError struct {
-	Error string `json:"error"`
-}
-
 func chirpCensor(text string) string {
 	badWords := []string{"kerfuffle", "sharbert", "fornax"}
 	censorText := "****"

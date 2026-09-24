@@ -50,18 +50,8 @@ func handlerReadiness(writer http.ResponseWriter, _ *http.Request) {
 }
 
 func (cfg *apiConfig) handlerAddUser(writer http.ResponseWriter, req *http.Request) {
-	type paramsJson struct {
-		Email string `json:"email"`
-	}
-	type userJson struct {
-		Id        string `json:"id"`
-		CreatedAt string `json:"created_at"`
-		UpdatedAt string `json:"updated_at"`
-		Email     string `json:"email"`
-	}
-
 	decoder := json.NewDecoder(req.Body)
-	params := paramsJson{}
+	params := userParams{}
 	err := decoder.Decode(&params)
 	if err != nil {
 		writeErrorJson(writer, err, "Couldn't decode parameters", http.StatusInternalServerError)
@@ -74,7 +64,7 @@ func (cfg *apiConfig) handlerAddUser(writer http.ResponseWriter, req *http.Reque
 		return
 	}
 
-	resp := userJson{
+	resp := userResponse{
 		Id:        user.ID.String(),
 		CreatedAt: user.CreatedAt.String(),
 		UpdatedAt: user.UpdatedAt.String(),
@@ -84,20 +74,8 @@ func (cfg *apiConfig) handlerAddUser(writer http.ResponseWriter, req *http.Reque
 }
 
 func (cfg *apiConfig) handlerAddChirp(writer http.ResponseWriter, req *http.Request) {
-	type paramsJson struct {
-		Body   string `json:"body"`
-		UserId string `json:"user_id"`
-	}
-	type chirpJson struct {
-		Id        string `json:"id"`
-		CreatedAt string `json:"created_at"`
-		UpdatedAt string `json:"updated_at"`
-		Body      string `json:"body"`
-		UserId    string `json:"user_id"`
-	}
-
 	decoder := json.NewDecoder(req.Body)
-	params := paramsJson{}
+	params := chirpParams{}
 	err := decoder.Decode(&params)
 	if err != nil {
 		writeErrorJson(writer, err, "Couldn't decode parameters", http.StatusInternalServerError)
@@ -117,12 +95,32 @@ func (cfg *apiConfig) handlerAddChirp(writer http.ResponseWriter, req *http.Requ
 		return
 	}
 
-	resp := chirpJson{
+	resp := chirpResponse{
 		Id:        chirp.ID.String(),
 		CreatedAt: chirp.CreatedAt.String(),
 		UpdatedAt: chirp.UpdatedAt.String(),
-		Body:      chirpCensor(params.Body),
+		Body:      chirpCensor(chirp.Body),
 		UserId:    chirp.UserID.String(),
 	}
 	writeResponseJson(writer, resp, http.StatusCreated)
+}
+
+func (cfg *apiConfig) handlerGetAllChirps(writer http.ResponseWriter, req *http.Request) {
+	chirps, err := cfg.db.GetAllChirps(req.Context())
+	if err != nil {
+		writeErrorJson(writer, err, "Couldn't retrieve chirps", http.StatusInternalServerError)
+		return
+	}
+
+	resp := []chirpResponse{}
+	for _, chirp := range chirps {
+		resp = append(resp, chirpResponse{
+			Id:        chirp.ID.String(),
+			CreatedAt: chirp.CreatedAt.String(),
+			UpdatedAt: chirp.UpdatedAt.String(),
+			Body:      chirp.Body,
+			UserId:    chirp.UserID.String(),
+		})
+	}
+	writeResponseJson(writer, resp, http.StatusOK)
 }
