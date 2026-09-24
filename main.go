@@ -40,11 +40,12 @@ func main() {
 
 	fileHandler := http.StripPrefix("/app", cfg.middlewareMetricsInc(http.FileServer(http.Dir(root))))
 	mux.Handle("/app/", fileHandler)
-	mux.HandleFunc("GET /api/healthz", handlerReadiness)
-	mux.HandleFunc("POST /api/validate_chirp", handlerChirpValidate)
-	mux.HandleFunc("POST /api/users", cfg.handlerAddUser)
+
 	mux.HandleFunc("GET /admin/metrics", cfg.handlerMetrics)
 	mux.HandleFunc("POST /admin/reset", cfg.handlerReset)
+	mux.HandleFunc("POST /api/chirps", cfg.handlerAddChirp)
+	mux.HandleFunc("GET /api/healthz", handlerReadiness)
+	mux.HandleFunc("POST /api/users", cfg.handlerAddUser)
 
 	server := http.Server{Addr: addr, Handler: mux}
 	log.Fatal(server.ListenAndServe())

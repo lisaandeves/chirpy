@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+
+	"github.com/google/uuid"
+	"github.com/lisaandeves/chirpy/internal/database"
 )
 
 func (cfg *apiConfig) handlerMetrics(writer http.ResponseWriter, _ *http.Request) {
@@ -46,32 +49,8 @@ func handlerReadiness(writer http.ResponseWriter, _ *http.Request) {
 	writer.Write([]byte(http.StatusText(http.StatusOK)))
 }
 
-func handlerChirpValidate(writer http.ResponseWriter, req *http.Request) {
-	type chirpJson struct {
-		Body string `json:"body"`
-	}
-	type responseValid struct {
-		CleanedBody string `json:"cleaned_body"`
-	}
-
-	decoder := json.NewDecoder(req.Body)
-	params := chirpJson{}
-	err := decoder.Decode(&params)
-	if err != nil {
-		writeErrorJson(writer, err, "Couldn't decode parameters", http.StatusInternalServerError)
-		return
-	}
-	if len(params.Body) > 140 {
-		writeErrorJson(writer, nil, "Chirp is too long", http.StatusBadRequest)
-		return
-	}
-
-	resp := responseValid{CleanedBody: chirpCensor(params.Body)}
-	writeResponseJson(writer, resp, http.StatusOK)
-}
-
 func (cfg *apiConfig) handlerAddUser(writer http.ResponseWriter, req *http.Request) {
-	type emailJson struct {
+	type paramsJson struct {
 		Email string `json:"email"`
 	}
 	type userJson struct {
@@ -82,7 +61,7 @@ func (cfg *apiConfig) handlerAddUser(writer http.ResponseWriter, req *http.Reque
 	}
 
 	decoder := json.NewDecoder(req.Body)
-	params := emailJson{}
+	params := paramsJson{}
 	err := decoder.Decode(&params)
 	if err != nil {
 		writeErrorJson(writer, err, "Couldn't decode parameters", http.StatusInternalServerError)
@@ -100,6 +79,50 @@ func (cfg *apiConfig) handlerAddUser(writer http.ResponseWriter, req *http.Reque
 		CreatedAt: user.CreatedAt.String(),
 		UpdatedAt: user.UpdatedAt.String(),
 		Email:     user.Email,
+	}
+	writeResponseJson(writer, resp, http.StatusCreated)
+}
+
+func (cfg *apiConfig) handlerAddChirp(writer http.ResponseWriter, req *http.Request) {
+	type paramsJson struct {
+		Body   string `json:"body"`
+		UserId string `json:"user_id"`
+	}
+	type chirpJson struct {
+		Id        string `json:"id"`
+		CreatedAt string `json:"created_at"`
+		UpdatedAt string `json:"updated_at"`
+		Body      string `json:"body"`
+		UserId    string `json:"user_id"`
+	}
+
+	decoder := json.NewDecoder(req.Body)
+	params := paramsJson{}
+	err := decoder.Decode(&params)
+	if err != nil {
+		writeErrorJson(writer, err, "Couldn't decode parameters", http.StatusInternalServerError)
+		return
+	}
+
+	chirp, err := cfg.db.CreateChirp(req.Context(), database.CreateChirpParams{
+		Body:   params.Body,
+		UserID: uuid.MustParse(params.UserId),
+	})
+	if err != nil {
+		writeErrorJson(writer, err, "Couldn't create chirp", http.StatusInternalServerError)
+		return
+	}
+	if len(params.Body) > 140 {
+		writeErrorJson(writer, nil, "Chirp is too long", http.StatusBadRequest)
+		return
+	}
+
+	resp := chirpJson{
+		Id:        chirp.ID.String(),
+		CreatedAt: chirp.CreatedAt.String(),
+		UpdatedAt: chirp.UpdatedAt.String(),
+		Body:      chirpCensor(params.Body),
+		UserId:    chirp.UserID.String(),
 	}
 	writeResponseJson(writer, resp, http.StatusCreated)
 }
