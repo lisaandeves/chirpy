@@ -2,11 +2,13 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
 
 	"github.com/google/uuid"
+	"github.com/lisaandeves/chirpy/internal/auth"
 	"github.com/lisaandeves/chirpy/internal/database"
 )
 
@@ -57,8 +59,16 @@ func (cfg *apiConfig) handlerAddUser(writer http.ResponseWriter, req *http.Reque
 		writeErrorJson(writer, err, "Couldn't decode parameters", http.StatusInternalServerError)
 		return
 	}
+	pwd, err := auth.HashPassword(params.Password)
+	if err != nil {
+		writeErrorJson(writer, err, "Error creating password", http.StatusInternalServerError)
+		return
+	}
 
-	user, err := cfg.db.CreateUser(req.Context(), params.Email)
+	user, err := cfg.db.CreateUser(req.Context(), database.CreateUserParams{
+		Email:          params.Email,
+		HashedPassword: pwd,
+	})
 	if err != nil {
 		writeErrorJson(writer, err, "Couldn't create user", http.StatusInternalServerError)
 		return
@@ -71,6 +81,39 @@ func (cfg *apiConfig) handlerAddUser(writer http.ResponseWriter, req *http.Reque
 		Email:     user.Email,
 	}
 	writeResponseJson(writer, resp, http.StatusCreated)
+}
+
+func (cfg *apiConfig) handlerLoginUser(writer http.ResponseWriter, req *http.Request) {
+	decoder := json.NewDecoder(req.Body)
+	params := userParams{}
+	err := decoder.Decode(&params)
+	if err != nil {
+		writeErrorJson(writer, err, "Couldn't decode parameters", http.StatusInternalServerError)
+		return
+	}
+
+	user, err := cfg.db.GetUserByEmail(req.Context(), params.Email)
+	if err != nil {
+		writeErrorJson(writer, err, "Incorrect email or password", http.StatusUnauthorized)
+		return
+	}
+	ok, err := auth.CheckPasswordHash(params.Password, user.HashedPassword)
+	if err != nil {
+		writeErrorJson(writer, err, "Incorrect email or password", http.StatusUnauthorized)
+		return
+	}
+	if !ok {
+		writeErrorJson(writer, errors.New(""), "Incorrect email or password", http.StatusUnauthorized)
+		return
+	}
+
+	resp := userResponse{
+		Id:        user.ID.String(),
+		CreatedAt: user.CreatedAt.String(),
+		UpdatedAt: user.UpdatedAt.String(),
+		Email:     user.Email,
+	}
+	writeResponseJson(writer, resp, http.StatusOK)
 }
 
 func (cfg *apiConfig) handlerAddChirp(writer http.ResponseWriter, req *http.Request) {
@@ -91,7 +134,7 @@ func (cfg *apiConfig) handlerAddChirp(writer http.ResponseWriter, req *http.Requ
 		return
 	}
 	if len(params.Body) > 140 {
-		writeErrorJson(writer, nil, "Chirp is too long", http.StatusBadRequest)
+		writeErrorJson(writer, errors.New(""), "Chirp is too long", http.StatusBadRequest)
 		return
 	}
 

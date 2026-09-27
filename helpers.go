@@ -25,7 +25,12 @@ func chirpCensor(text string) string {
 
 func writeErrorJson(writer http.ResponseWriter, err error, msg string, code int) {
 	writer.Header().Set("Content-Type", "application/json")
-	resp := responseError{Error: fmt.Sprintf("%s: %s", msg, err.Error())}
+	resp := responseError{}
+	if err == nil || err.Error() == "" {
+		resp.Error = msg
+	} else {
+		resp.Error = fmt.Sprintf("%s: %s", msg, err.Error())
+	}
 	dat, err := json.Marshal(resp)
 	if err != nil {
 		//Unreachable

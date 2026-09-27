@@ -5,7 +5,8 @@ type responseError struct {
 }
 
 type userParams struct {
-	Email string `json:"email"`
+	Email    string `json:"email"`
+	Password string `json:"password"`
 }
 
 type userResponse struct {
