@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/lisaandeves/chirpy/internal/auth"
@@ -59,6 +60,7 @@ func (cfg *apiConfig) handlerAddUser(writer http.ResponseWriter, req *http.Reque
 		writeErrorJson(writer, err, "Couldn't decode parameters", http.StatusInternalServerError)
 		return
 	}
+
 	pwd, err := auth.HashPassword(params.Password)
 	if err != nil {
 		writeErrorJson(writer, err, "Error creating password", http.StatusInternalServerError)
@@ -92,26 +94,36 @@ func (cfg *apiConfig) handlerLoginUser(writer http.ResponseWriter, req *http.Req
 		return
 	}
 
+	var expiresIn time.Duration
+	if params.ExpiresInSeconds == nil || *params.ExpiresInSeconds > 3600 {
+		expiresIn = time.Hour
+	} else {
+		expiresIn = time.Duration(*params.ExpiresInSeconds) * time.Second
+	}
+
 	user, err := cfg.db.GetUserByEmail(req.Context(), params.Email)
 	if err != nil {
 		writeErrorJson(writer, err, "Incorrect email or password", http.StatusUnauthorized)
 		return
 	}
+
 	ok, err := auth.CheckPasswordHash(params.Password, user.HashedPassword)
-	if err != nil {
+	if err != nil || !ok {
 		writeErrorJson(writer, err, "Incorrect email or password", http.StatusUnauthorized)
 		return
 	}
-	if !ok {
-		writeErrorJson(writer, errors.New(""), "Incorrect email or password", http.StatusUnauthorized)
-		return
+
+	tokenString, err := auth.MakeJWT(user.ID, cfg.secret, expiresIn)
+	if err != nil {
+		writeErrorJson(writer, err, "Error authenticating user", http.StatusInternalServerError)
 	}
 
-	resp := userResponse{
+	resp := userWithTokenResponse{
 		Id:        user.ID.String(),
 		CreatedAt: user.CreatedAt.String(),
 		UpdatedAt: user.UpdatedAt.String(),
 		Email:     user.Email,
+		Token:     tokenString,
 	}
 	writeResponseJson(writer, resp, http.StatusOK)
 }
@@ -125,9 +137,20 @@ func (cfg *apiConfig) handlerAddChirp(writer http.ResponseWriter, req *http.Requ
 		return
 	}
 
+	token, err := auth.GetBearerToken(req.Header)
+	if err != nil {
+		writeErrorJson(writer, err, "Invalid login credentials", http.StatusUnauthorized)
+		return
+	}
+	userID, err := auth.ValidateJWT(token, cfg.secret)
+	if err != nil {
+		writeErrorJson(writer, err, "Invalid login credentials", http.StatusUnauthorized)
+		return
+	}
+
 	chirp, err := cfg.db.CreateChirp(req.Context(), database.CreateChirpParams{
 		Body:   params.Body,
-		UserID: uuid.MustParse(params.UserId),
+		UserID: userID,
 	})
 	if err != nil {
 		writeErrorJson(writer, err, "Couldn't create chirp", http.StatusInternalServerError)

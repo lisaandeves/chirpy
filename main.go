@@ -15,6 +15,7 @@ import (
 type apiConfig struct {
 	fileserverHits atomic.Int32
 	db             *database.Queries
+	secret         string
 }
 
 func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
@@ -26,6 +27,7 @@ func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
 
 func main() {
 	godotenv.Load()
+	secret := os.Getenv("SECRET")
 	dbURL := os.Getenv("DB_URL")
 	db, err := sql.Open("postgres", dbURL)
 	if err != nil {
@@ -35,7 +37,7 @@ func main() {
 
 	addr := ":8080"
 	root := "."
-	cfg := apiConfig{db: dbQueries}
+	cfg := apiConfig{db: dbQueries, secret: secret}
 	mux := http.NewServeMux()
 
 	fileHandler := http.StripPrefix("/app", cfg.middlewareMetricsInc(http.FileServer(http.Dir(root))))
