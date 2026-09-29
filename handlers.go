@@ -148,26 +148,6 @@ func (cfg *apiConfig) handlerAddChirp(writer http.ResponseWriter, req *http.Requ
 	writeResponseJson(writer, resp, http.StatusCreated)
 }
 
-func (cfg *apiConfig) handlerGetAllChirps(writer http.ResponseWriter, req *http.Request) {
-	chirps, err := cfg.db.GetAllChirps(req.Context())
-	if err != nil {
-		writeErrorJson(writer, err, "Couldn't retrieve chirps", http.StatusInternalServerError)
-		return
-	}
-
-	resp := []chirpResponse{}
-	for _, chirp := range chirps {
-		resp = append(resp, chirpResponse{
-			Id:        chirp.ID.String(),
-			CreatedAt: chirp.CreatedAt.String(),
-			UpdatedAt: chirp.UpdatedAt.String(),
-			Body:      chirp.Body,
-			UserId:    chirp.UserID.String(),
-		})
-	}
-	writeResponseJson(writer, resp, http.StatusOK)
-}
-
 func (cfg *apiConfig) handlerGetChirp(writer http.ResponseWriter, req *http.Request) {
 	chirp_id_str := req.PathValue("id")
 	chirp_id, err := uuid.Parse(chirp_id_str)
@@ -187,6 +167,26 @@ func (cfg *apiConfig) handlerGetChirp(writer http.ResponseWriter, req *http.Requ
 		UpdatedAt: chirp.UpdatedAt.String(),
 		Body:      chirp.Body,
 		UserId:    chirp.UserID.String(),
+	}
+	writeResponseJson(writer, resp, http.StatusOK)
+}
+
+func (cfg *apiConfig) handlerGetAllChirps(writer http.ResponseWriter, req *http.Request) {
+	chirps, err := cfg.db.GetAllChirps(req.Context())
+	if err != nil {
+		writeErrorJson(writer, err, "Couldn't retrieve chirps", http.StatusInternalServerError)
+		return
+	}
+
+	resp := []chirpResponse{}
+	for _, chirp := range chirps {
+		resp = append(resp, chirpResponse{
+			Id:        chirp.ID.String(),
+			CreatedAt: chirp.CreatedAt.String(),
+			UpdatedAt: chirp.UpdatedAt.String(),
+			Body:      chirp.Body,
+			UserId:    chirp.UserID.String(),
+		})
 	}
 	writeResponseJson(writer, resp, http.StatusOK)
 }
