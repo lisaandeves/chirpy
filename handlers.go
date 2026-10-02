@@ -113,17 +113,29 @@ func (cfg *apiConfig) handlerLoginUser(writer http.ResponseWriter, req *http.Req
 		return
 	}
 
+	refreshToken := auth.MakeRefreshToken()
+	_, err = cfg.db.CreateRefreshToken(req.Context(), database.CreateRefreshTokenParams{
+		Token:  refreshToken,
+		UserID: user.ID,
+	})
+	if err != nil {
+		writeErrorJson(writer, err, "Error authenticating user", http.StatusInternalServerError)
+		return
+	}
+
 	tokenString, err := auth.MakeJWT(user.ID, cfg.secret, expiresIn)
 	if err != nil {
 		writeErrorJson(writer, err, "Error authenticating user", http.StatusInternalServerError)
+		return
 	}
 
 	resp := userWithTokenResponse{
-		Id:        user.ID.String(),
-		CreatedAt: user.CreatedAt.String(),
-		UpdatedAt: user.UpdatedAt.String(),
-		Email:     user.Email,
-		Token:     tokenString,
+		Id:           user.ID.String(),
+		CreatedAt:    user.CreatedAt.String(),
+		UpdatedAt:    user.UpdatedAt.String(),
+		Email:        user.Email,
+		Token:        tokenString,
+		RefreshToken: refreshToken,
 	}
 	writeResponseJson(writer, resp, http.StatusOK)
 }
@@ -212,4 +224,59 @@ func (cfg *apiConfig) handlerGetAllChirps(writer http.ResponseWriter, req *http.
 		})
 	}
 	writeResponseJson(writer, resp, http.StatusOK)
+}
+
+func (cfg *apiConfig) handlerRefresh(writer http.ResponseWriter, req *http.Request) {
+	refreshToken, err := auth.GetBearerToken(req.Header)
+	if err != nil {
+		writeErrorJson(writer, err, "Invalid login credentials", http.StatusUnauthorized)
+		return
+	}
+
+	refreshTokenInfo, err := cfg.db.GetRefreshToken(req.Context(), refreshToken)
+	if err != nil ||
+		refreshTokenInfo.ExpiresAt.Before(time.Now()) ||
+		refreshTokenInfo.RevokedAt.Valid == true {
+		writeErrorJson(writer, err, "Invalid login credentials", http.StatusUnauthorized)
+		return
+	}
+
+	user, err := cfg.db.GetUserByRefreshToken(req.Context(), refreshToken)
+	if err != nil {
+		writeErrorJson(writer, err, "Invalid login credentials", http.StatusUnauthorized)
+		return
+	}
+
+	newJWT, err := auth.MakeJWT(user.ID, cfg.secret, time.Hour)
+	if err != nil {
+		writeErrorJson(writer, err, "Error authenticating user", http.StatusInternalServerError)
+		return
+	}
+
+	resp := userWithTokenResponse{
+		Id:           user.ID.String(),
+		CreatedAt:    user.CreatedAt.String(),
+		UpdatedAt:    user.UpdatedAt.String(),
+		Email:        user.Email,
+		Token:        newJWT,
+		RefreshToken: refreshToken,
+	}
+	writeResponseJson(writer, resp, http.StatusOK)
+}
+
+func (cfg *apiConfig) handlerRevoke(writer http.ResponseWriter, req *http.Request) {
+	refreshToken, err := auth.GetBearerToken(req.Header)
+	if err != nil {
+		writeErrorJson(writer, err, "Invalid login credentials", http.StatusUnauthorized)
+		return
+	}
+
+	err = cfg.db.RevokeRefreshToken(req.Context(), refreshToken)
+	if err != nil {
+		writeErrorJson(writer, err, "Error with login credentials", http.StatusInternalServerError)
+		return
+	}
+
+	writer.WriteHeader(http.StatusNoContent)
+	writer.Write(nil)
 }

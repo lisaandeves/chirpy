@@ -18,11 +18,12 @@ type userResponse struct {
 }
 
 type userWithTokenResponse struct {
-	Id        string `json:"id"`
-	CreatedAt string `json:"created_at"`
-	UpdatedAt string `json:"updated_at"`
-	Email     string `json:"email"`
-	Token     string `json:"token"`
+	Id           string `json:"id"`
+	CreatedAt    string `json:"created_at"`
+	UpdatedAt    string `json:"updated_at"`
+	Email        string `json:"email"`
+	Token        string `json:"token"`
+	RefreshToken string `json:"refresh_token"`
 }
 
 type chirpParams struct {
@@ -36,4 +37,8 @@ type chirpResponse struct {
 	UpdatedAt string `json:"updated_at"`
 	Body      string `json:"body"`
 	UserId    string `json:"user_id"`
+}
+
+type refreshSuccess struct {
+	Token string `json:"token"`
 }
