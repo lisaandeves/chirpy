@@ -229,6 +229,44 @@ func (cfg *apiConfig) handlerAddChirp(writer http.ResponseWriter, req *http.Requ
 	writeResponseJson(writer, resp, http.StatusCreated)
 }
 
+func (cfg *apiConfig) handlerDeleteChirp(writer http.ResponseWriter, req *http.Request) {
+	token, err := auth.GetBearerToken(req.Header)
+	if err != nil {
+		writeErrorJson(writer, err, "Invalid login credentials", http.StatusUnauthorized)
+		return
+	}
+	userID, err := auth.ValidateJWT(token, cfg.secret)
+	if err != nil {
+		writeErrorJson(writer, err, "Invalid login credentials", http.StatusUnauthorized)
+		return
+	}
+
+	chirp_id_str := req.PathValue("id")
+	chirp_id, err := uuid.Parse(chirp_id_str)
+	if err != nil {
+		writeErrorJson(writer, err, "Invalid chirp ID", http.StatusBadRequest)
+		return
+	}
+	chirp, err := cfg.db.GetChirp(req.Context(), chirp_id)
+	if err != nil {
+		writeErrorJson(writer, err, "Chirp not found", http.StatusNotFound)
+		return
+	}
+	if chirp.UserID != userID {
+		writeErrorJson(writer, err, "Logged in user does not match chirp author", http.StatusForbidden)
+		return
+	}
+
+	err = cfg.db.DeleteChirp(req.Context(), chirp.ID)
+	if err != nil {
+		writeErrorJson(writer, err, "Couldn't delete chirp", http.StatusInternalServerError)
+		return
+	}
+
+	writer.WriteHeader(http.StatusNoContent)
+	writer.Write(nil)
+}
+
 func (cfg *apiConfig) handlerGetChirp(writer http.ResponseWriter, req *http.Request) {
 	chirp_id_str := req.PathValue("id")
 	chirp_id, err := uuid.Parse(chirp_id_str)
