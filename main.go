@@ -46,6 +46,7 @@ func main() {
 	mux.HandleFunc("GET /admin/metrics", cfg.handlerMetrics)
 	mux.HandleFunc("POST /admin/reset", cfg.handlerReset)
 	mux.HandleFunc("GET /api/chirps", cfg.handlerGetAllChirps)
+	mux.HandleFunc("DELETE /api/chirps/{id}", cfg.handlerDeleteChirp)
 	mux.HandleFunc("GET /api/chirps/{id}", cfg.handlerGetChirp)
 	mux.HandleFunc("POST /api/chirps", cfg.handlerAddChirp)
 	mux.HandleFunc("GET /api/healthz", handlerReadiness)
@@ -53,6 +54,7 @@ func main() {
 	mux.HandleFunc("POST /api/refresh", cfg.handlerRefresh)
 	mux.HandleFunc("POST /api/revoke", cfg.handlerRevoke)
 	mux.HandleFunc("POST /api/users", cfg.handlerAddUser)
+	mux.HandleFunc("PUT /api/users", cfg.handlerUpdateUser)
 
 	server := http.Server{Addr: addr, Handler: mux}
 	log.Fatal(server.ListenAndServe())

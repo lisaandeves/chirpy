@@ -85,6 +85,52 @@ func (cfg *apiConfig) handlerAddUser(writer http.ResponseWriter, req *http.Reque
 	writeResponseJson(writer, resp, http.StatusCreated)
 }
 
+func (cfg *apiConfig) handlerUpdateUser(writer http.ResponseWriter, req *http.Request) {
+	token, err := auth.GetBearerToken(req.Header)
+	if err != nil {
+		writeErrorJson(writer, err, "Invalid login credentials", http.StatusUnauthorized)
+		return
+	}
+	userID, err := auth.ValidateJWT(token, cfg.secret)
+	if err != nil {
+		writeErrorJson(writer, err, "Invalid login credentials", http.StatusUnauthorized)
+		return
+	}
+
+	decoder := json.NewDecoder(req.Body)
+	params := userParams{}
+	err = decoder.Decode(&params)
+	if err != nil {
+		writeErrorJson(writer, err, "Couldn't decode parameters", http.StatusInternalServerError)
+		return
+	}
+
+	pwd, err := auth.HashPassword(params.Password)
+	if err != nil {
+		writeErrorJson(writer, err, "Error creating password", http.StatusInternalServerError)
+		return
+	}
+
+	user, err := cfg.db.UpdateUser(req.Context(), database.UpdateUserParams{
+		ID:             userID,
+		Email:          params.Email,
+		HashedPassword: pwd,
+	})
+	if err != nil {
+		writeErrorJson(writer, err, "Couldn't update user details", http.StatusInternalServerError)
+		return
+	}
+
+	resp := userWithTokenResponse{
+		Id:        user.ID.String(),
+		CreatedAt: user.CreatedAt.String(),
+		UpdatedAt: user.UpdatedAt.String(),
+		Email:     user.Email,
+		Token:     token,
+	}
+	writeResponseJson(writer, resp, http.StatusOK)
+}
+
 func (cfg *apiConfig) handlerLoginUser(writer http.ResponseWriter, req *http.Request) {
 	decoder := json.NewDecoder(req.Body)
 	params := userParams{}
